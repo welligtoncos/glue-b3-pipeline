@@ -15,8 +15,9 @@ S3 (raw) → Glue Crawler → Glue Catalog → Athena
 | Armazenamento raw | Amazon S3 | ✅ US-01 |
 | Armazenamento de queries | Amazon S3 | ✅ US-01 |
 | Segurança (IAM) | Roles, Policies, Groups | ✅ US-02 |
-| Catalogação | AWS Glue Crawler + Catalog | 🔜 US-03 |
-| Consulta SQL | Amazon Athena Workgroup | 🔜 US-04 |
+| Glue Database | Glue Data Catalog (`b3_raw`) | ✅ US-03 |
+| Glue Crawler | Catalogação automática S3 | 🔜 US-04 |
+| Consulta SQL | Amazon Athena Workgroup | 🔜 US-05 |
 
 ## Ambiente
 
@@ -72,6 +73,7 @@ athena_analyst_users = ["$USER_NAME"]
 .
 ├── main.tf                  # US-01: buckets S3
 ├── iam.tf                   # US-02: IAM Role, Policies e Group
+├── glue.tf                  # US-03: Glue Database (Data Catalog)
 ├── locals.tf                # Padrão centralizado de nomenclatura
 ├── variables.tf             # Variáveis de entrada
 ├── outputs.tf               # Nomes, ARNs e referências
@@ -92,6 +94,7 @@ athena_analyst_users = ["$USER_NAME"]
 | `aws_account_id` | sim | — | ID da conta AWS (12 dígitos) |
 | `aws_region` | não | `us-east-1` | Região de deploy |
 | `environment` | não | `dev` | Ambiente (`dev`, `stg`, `prod`) |
+| `glue_db_name` | não | `b3_raw` | Nome do Glue Database no Data Catalog |
 | `athena_analyst_users` | não | `[]` | Usuários no grupo Athena (least privilege) |
 
 ## Recursos provisionados
@@ -117,6 +120,12 @@ Padrão: `{project}-{env}-iam-{purpose}`
 | `aws_iam_policy.athena_query` | `glue-b3-dev-iam-athena-query` — policy standalone |
 | `aws_iam_group.athena_analysts` | `glue-b3-dev-iam-grp-athena-analysts` — grupo de analysts |
 
+### US-03 — Glue Database
+
+| Recurso Terraform | Nome |
+|-------------------|------|
+| `aws_glue_catalog_database.this` | `b3_raw` |
+
 Permissões do grupo Athena (least privilege):
 
 - Athena: `StartQueryExecution`, `GetQueryExecution`, `GetQueryResults`, `StopQueryExecution`
@@ -130,7 +139,8 @@ terraform output s3_bucket_raw_name           # bucket raw
 terraform output glue_crawler_role_arn          # ARN da role do crawler
 terraform output athena_query_policy_arn        # ARN da policy Athena
 terraform output athena_analysts_group_name     # grupo de analysts
-terraform output naming_convention              # nomes reservados US-03/04
+terraform output glue_database_name              # database b3_raw
+terraform output naming_convention              # nomes reservados US-04/05
 ```
 
 ## Critérios de aceite
@@ -149,6 +159,12 @@ terraform output naming_convention              # nomes reservados US-03/04
 - [x] Policy Athena query (standalone + grupo)
 - [x] Least privilege aplicado via grupo IAM
 
+### US-03 — Glue Database
+
+- [x] Database criado no Catalog
+- [x] Nome: `b3_raw`
+- [x] Description preenchida
+
 ## Verificação rápida
 
 ```powershell
@@ -162,6 +178,10 @@ aws iam get-role --role-name glue-b3-dev-iam-glue-crawler
 aws iam list-attached-group-policies --group-name glue-b3-dev-iam-grp-athena-analysts
 aws iam list-groups-for-user --user-name usuario-dados
 
+# Glue Database
+aws glue get-database --name b3_raw
+terraform output glue_database_name
+
 # Drift
 terraform plan -var-file="terraform.tfvars"
 ```
@@ -174,11 +194,11 @@ Padrão centralizado em `locals.tf`:
 {project_name}-{environment}-{aws_service}-{purpose}[-{account_id}]
 ```
 
-| US | Recurso | Nome reservado |
-|----|---------|----------------|
-| US-03 | Glue Database | `glue-b3-dev-glue-db-catalog` |
-| US-03 | Glue Crawler | `glue-b3-dev-glue-crawler-raw` |
-| US-04 | Athena Workgroup | `glue-b3-dev-athena-wg-primary` |
+| US | Recurso | Nome |
+|----|---------|------|
+| US-03 | Glue Database | `b3_raw` |
+| US-04 | Glue Crawler | `glue-b3-dev-glue-crawler-raw` |
+| US-05 | Athena Workgroup | `glue-b3-dev-athena-wg-primary` |
 
 Detalhes: [Convenção de Nomenclatura](docs/naming-convention.md)
 
@@ -189,6 +209,7 @@ Detalhes: [Convenção de Nomenclatura](docs/naming-convention.md)
 | [Arquitetura](docs/architecture.md) | Visão geral do pipeline e fluxo de dados |
 | [Getting Started](docs/getting-started.md) | Pré-requisitos, deploy e troubleshooting |
 | [US-01 — Buckets S3](docs/us-01-s3-buckets.md) | Spec e testes dos buckets |
+| [US-03 — Glue Database](docs/us-03-glue-database.md) | Data Catalog e database `b3_raw` |
 | [Convenção de Nomenclatura](docs/naming-convention.md) | Padrão de nomes AWS |
 
 ## Destruir recursos (dev)
@@ -201,5 +222,5 @@ Buckets usam `force_destroy = true` — objetos são removidos junto.
 
 ## Próximas entregas
 
-- **US-03** — Glue Database + Crawler apontando para o bucket raw
-- **US-04** — Athena Workgroup com saída no bucket athena-results
+- **US-04** — Glue Crawler apontando para o bucket raw
+- **US-05** — Athena Workgroup com saída no bucket athena-results

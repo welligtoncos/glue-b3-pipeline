@@ -22,7 +22,8 @@ locals {
   }
 
   # Reservado para US-02 e US-03
-  glue_database_name        = "${local.name_prefix}-glue-db-catalog"
+  # Glue Data Catalog — nome logico configuravel (ex.: b3_raw)
+  glue_database_name        = var.glue_db_name
   glue_crawler_name         = "${local.name_prefix}-glue-crawler-raw"
   athena_workgroup_name     = "${local.name_prefix}-athena-wg-primary"
   iam_role_glue_crawler     = "${local.name_prefix}-iam-glue-crawler"

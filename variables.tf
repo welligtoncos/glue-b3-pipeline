@@ -24,6 +24,17 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "glue_db_name" {
+  description = "Nome logico do Glue Database no Data Catalog (namespace das tabelas Ibovespa)."
+  type        = string
+  default     = "b3_raw"
+
+  validation {
+    condition     = can(regex("^[a-z0-9_]+$", var.glue_db_name))
+    error_message = "glue_db_name deve conter apenas letras minusculas, numeros e underscores."
+  }
+}
+
 variable "athena_analyst_users" {
   description = "Usuarios IAM adicionados ao grupo de analysts Athena (least privilege)."
   type        = list(string)

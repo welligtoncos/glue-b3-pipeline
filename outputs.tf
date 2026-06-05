@@ -68,3 +68,13 @@ output "athena_analyst_users" {
   description = "Usuarios membros do grupo de analysts Athena."
   value       = var.athena_analyst_users
 }
+
+output "glue_database_name" {
+  description = "Nome do Glue Database no Data Catalog."
+  value       = aws_glue_catalog_database.this.name
+}
+
+output "glue_database_arn" {
+  description = "ARN do Glue Database no Data Catalog."
+  value       = aws_glue_catalog_database.this.arn
+}

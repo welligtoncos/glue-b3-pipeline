@@ -3,4 +3,6 @@ aws_account_id = "000000000000" # substitua: aws sts get-caller-identity --query
 aws_region     = "us-east-1"
 environment    = "dev"
 
+glue_db_name   = "b3_raw"
+
 athena_analyst_users = ["seu-usuario-iam"]
