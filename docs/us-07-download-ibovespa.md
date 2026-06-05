@@ -73,4 +73,4 @@ Import-Csv data/local/ibovespa_stocks.csv | Select-Object -First 5
 
 ## Proximo passo
 
-- Upload do CSV para `s3://glue-b3-dev-s3-raw-.../stocks/` (US futura)
+- Upload particionado no S3: [US-08 — Upload S3](us-08-upload-s3.md)

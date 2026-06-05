@@ -20,6 +20,7 @@ Indice da documentacao do projeto.
 | US | Documento | Status |
 |----|-----------|--------|
 | US-07 | [Download Ibovespa](us-07-download-ibovespa.md) | ✅ Concluida |
+| US-08 | [Upload S3 particionado](us-08-upload-s3.md) | ✅ Concluida |
 
 ## Scripts
 
@@ -27,7 +28,7 @@ Indice da documentacao do projeto.
 |--------|------------|-----|
 | `scripts/validate-sprint1.ps1` | Windows | `.\scripts\validate-sprint1.ps1 -VerifyOnly` |
 | `scripts/validate-sprint1.sh` | Bash / CI | `./scripts/validate-sprint1.sh --verify-only` |
-| `scripts/download_ibovespa.py` | Python | `python scripts/download_ibovespa.py` |
+| `scripts/download_ibovespa.py` | Python | `python scripts/download_ibovespa.py --bucket <raw>` |
 
 ## Arquivos Terraform
 

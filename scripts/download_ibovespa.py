@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """
-US-07 — Download de cotacoes Ibovespa via yfinance.
+US-07 / US-08 — Download Ibovespa (yfinance) e upload particionado no S3.
 
-Baixa historico diario (OHLCV) e salva CSV local com schema padrao do pipeline.
+Baixa historico diario (OHLCV), salva CSV local e opcionalmente envia ao S3
+com particao Hive (ticker=...) para o Glue Crawler.
 """
 
 from __future__ import annotations
 
 import argparse
-from datetime import date
+import io
 from pathlib import Path
 
+import boto3
 import pandas as pd
 import yfinance as yf
 
@@ -20,6 +22,7 @@ YFINANCE_SUFFIX = ".SA"
 
 DEFAULT_START = "2018-01-01"
 DEFAULT_OUTPUT = Path("data/local/ibovespa_stocks.csv")
+S3_PREFIX = "raw/ibovespa"
 
 OUTPUT_COLUMNS = ["ticker", "date", "open", "high", "low", "close", "volume"]
 
@@ -87,9 +90,55 @@ def download_ibovespa(
     return combined
 
 
+def s3_partition_key(ticker: str) -> str:
+    """Chave S3 no padrao Hive: raw/ibovespa/ticker=PETR4/PETR4.csv"""
+    ticker = ticker.upper().strip()
+    return f"{S3_PREFIX}/ticker={ticker}/{ticker}.csv"
+
+
+def upload_to_s3(df: pd.DataFrame, bucket: str) -> list[dict[str, str | int]]:
+    """
+    Envia um CSV por ticker ao S3 com particao Hive (ticker=...).
+
+    Usa put_object + StringIO (UTF-8) sem arquivo temporario em disco.
+    """
+    client = boto3.client("s3")
+    uploads: list[dict[str, str | int]] = []
+
+    for ticker, group in df.groupby("ticker", sort=True):
+        buffer = io.StringIO()
+        group.to_csv(buffer, index=False)
+        body = buffer.getvalue().encode("utf-8")
+        key = s3_partition_key(str(ticker))
+        line_count = len(group)
+
+        client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=body,
+            ContentType="text/csv",
+        )
+
+        print(
+            f"Upload OK | bucket={bucket} | key={key} | linhas_enviadas={line_count:,}"
+        )
+        uploads.append(
+            {
+                "bucket": bucket,
+                "key": key,
+                "lines": line_count,
+            }
+        )
+
+    return uploads
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Download de dados Ibovespa (B3) via yfinance para CSV local."
+        description=(
+            "Download de dados Ibovespa (B3) via yfinance. "
+            "Salva CSV local e opcionalmente envia ao S3 com particao Hive."
+        )
     )
     parser.add_argument(
         "--tickers",
@@ -113,6 +162,14 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_OUTPUT,
         help=f"Caminho do CSV de saida (default: {DEFAULT_OUTPUT})",
     )
+    parser.add_argument(
+        "--bucket",
+        default=None,
+        help=(
+            "Nome do bucket S3 raw. Se informado, faz upload particionado "
+            f"em {S3_PREFIX}/ticker=<TICKER>/<TICKER>.csv"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -132,6 +189,10 @@ def main() -> None:
     max_date = df["date"].max()
     print(f"CSV salvo: {args.output}")
     print(f"Registros: {len(df):,} | Tickers: {df['ticker'].nunique()} | Periodo: {min_date} a {max_date}")
+
+    if args.bucket:
+        print(f"Enviando para s3://{args.bucket}/{S3_PREFIX}/ ...")
+        upload_to_s3(df, bucket=args.bucket)
 
 
 if __name__ == "__main__":

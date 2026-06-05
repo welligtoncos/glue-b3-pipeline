@@ -20,6 +20,7 @@ S3 (raw) → Glue Crawler → Glue Catalog (b3_raw) → Athena
 | Observabilidade | CloudWatch Log Group | ✅ US-05 |
 | Validacao Sprint 1 | Terraform plan/apply/verify | ✅ US-06 |
 | Ingestao local | Download Ibovespa (yfinance) | ✅ US-07 |
+| Ingestao S3 | Upload CSV particionado (Hive) | ✅ US-08 |
 | Glue Crawler | Catalogacao automatica S3 | 🔜 Sprint 2 |
 
 ## Ambiente
@@ -116,6 +117,9 @@ terraform output glue_crawler_role_arn
 - [x] Tickers: PETR4, VALE3, ITUB4, BBDC4
 - [x] Colunas: ticker, date, open, high, low, close, volume
 - [x] Periodo >= 2018
+- [x] **US-08** — Upload S3 com particao Hive `ticker=...`
+- [x] `put_object` UTF-8 via StringIO + log bucket/key/linhas
+- [x] CLI `--bucket`
 
 ## Validacao
 
@@ -133,6 +137,7 @@ Indice completo: **[docs/README.md](docs/README.md)**
 | [Getting Started](docs/getting-started.md) | Deploy e troubleshooting |
 | [US-06 — Validacao](docs/us-06-sprint1-validation.md) | Checklist completo Sprint 1 |
 | [US-07 — Download Ibovespa](docs/us-07-download-ibovespa.md) | yfinance → CSV local |
+| [US-08 — Upload S3](docs/us-08-upload-s3.md) | CSV particionado Hive → S3 raw |
 | [Convencao de Nomenclatura](docs/naming-convention.md) | Padrao de nomes |
 
 ## Destruir (dev)
@@ -143,14 +148,14 @@ terraform destroy -var-file="terraform.tfvars"
 
 ## Proximo passo — Sprint 2
 
-- Upload CSV para S3 raw (`stocks/`)
 - **Glue Crawler** — catalogacao automatica → tabelas em `b3_raw`
 
-### Download dados Ibovespa (US-07)
+### Download e upload Ibovespa (US-07 + US-08)
 
 ```powershell
 pip install -r requirements.txt
-python scripts/download_ibovespa.py
+$bucket = terraform output -raw s3_bucket_raw_name
+python scripts/download_ibovespa.py --bucket $bucket
 ```
 
-Guia: [US-07 — Download Ibovespa](docs/us-07-download-ibovespa.md)
+Guias: [US-07](docs/us-07-download-ibovespa.md) · [US-08](docs/us-08-upload-s3.md)
