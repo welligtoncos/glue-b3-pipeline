@@ -2,118 +2,176 @@
 
 ## Visão geral
 
-O pipeline foi desenhado para ingerir dados brutos de ações da B3, catalogá-los automaticamente e permitir consultas SQL via Athena.
+Pipeline de dados para análise de ações da B3 (Ibovespa): ingestão no S3, catalogação via Glue e consultas SQL via Athena.
 
 ```mermaid
 flowchart LR
-    subgraph ingestao [Ingestão]
-        SRC[Fonte de dados B3]
+    subgraph ingestao [Ingestao]
+        SRC[Fonte B3 / Ibovespa]
     end
 
-    subgraph storage [Armazenamento]
+    subgraph storage [Armazenamento - US-01]
         RAW[(S3 Raw)]
         RESULTS[(S3 Athena Results)]
     end
 
-    subgraph catalog [Catalogação]
-        CRAWLER[Glue Crawler]
-        CATALOG[(Glue Data Catalog)]
+    subgraph security [Seguranca - US-02]
+        IAM[IAM Role + Group]
     end
 
-    subgraph query [Consulta]
-        ATHENA[Amazon Athena]
+    subgraph catalog [Catalogacao]
+        DB[(Glue DB b3_raw - US-03)]
+        CRAWLER[Glue Crawler - Sprint 2]
+    end
+
+    subgraph query [Consulta - US-04]
+        ATHENA[Athena Workgroup]
+    end
+
+    subgraph obs [Observabilidade - US-05]
+        CW[CloudWatch Logs]
     end
 
     SRC -->|upload| RAW
     RAW --> CRAWLER
-    CRAWLER -->|metadados| CATALOG
-    ATHENA -->|lê tabelas| CATALOG
-    ATHENA -->|lê dados| RAW
+    CRAWLER -->|metadados| DB
+    CRAWLER -->|logs| CW
+    ATHENA -->|le tabelas| DB
+    ATHENA -->|le dados| RAW
     ATHENA -->|resultados| RESULTS
+    IAM -.->|permissoes| CRAWLER
+    IAM -.->|permissoes| ATHENA
 ```
+
+## Status de implementacao (Sprint 1)
+
+| Componente | US | Status | Arquivo Terraform |
+|------------|-----|--------|-------------------|
+| S3 Raw | US-01 | ✅ | `main.tf` |
+| S3 Athena Results | US-01 | ✅ | `main.tf` |
+| IAM Role Crawler | US-02 | ✅ | `iam.tf` |
+| IAM Policy + Group Athena | US-02 | ✅ | `iam.tf` |
+| Glue Database `b3_raw` | US-03 | ✅ | `glue.tf` |
+| Athena Workgroup | US-04 | ✅ | `athena.tf` |
+| CloudWatch Log Group | US-05 | ✅ | `glue.tf` |
+| Glue Crawler | Sprint 2 | 🔜 | — |
 
 ## Componentes
 
 ### Amazon S3 — Raw (`glue-b3-dev-s3-raw-303238378103`)
 
-- **Função:** armazenar dados brutos (CSV, Parquet, JSON etc.) antes de qualquer transformação.
-- **Versionamento:** habilitado — permite recuperar versões anteriores de objetos.
-- **Acesso:** bloqueio total de acesso público.
-- **Dev:** `force_destroy = true` para facilitar teardown.
+- Dados brutos (CSV, Parquet, JSON)
+- Versionamento habilitado
+- Acesso publico bloqueado
+- `force_destroy = true` (dev)
 
-Convenção sugerida de prefixos (próximas US):
+Prefixos sugeridos:
 
 ```
 s3://glue-b3-dev-s3-raw-303238378103/
-├── stocks/          # cotações e histórico
-├── fundamentals/    # dados fundamentalistas
-└── landing/         # arquivos recém-chegados
+├── stocks/
+├── fundamentals/
+└── landing/
 ```
 
 ### Amazon S3 — Athena Results (`glue-b3-dev-s3-athena-results-303238378103`)
 
-- **Função:** destino dos resultados de queries do Athena (CSV por padrão).
-- **Versionamento:** não habilitado (objetos efêmeros de consulta).
-- **Acesso:** bloqueio total de acesso público.
+- Saida das queries Athena em `query-results/`
+- Criptografia SSE_S3 via Workgroup
+- Sem versionamento
 
-### AWS Glue Crawler *(US-02 — planejado)*
+### IAM — Seguranca (US-02)
 
-- Varre o bucket raw e infere schema dos arquivos.
-- Registra tabelas no Glue Data Catalog.
+| Recurso | Nome | Funcao |
+|---------|------|--------|
+| Role | `glue-b3-dev-iam-glue-crawler` | Execucao do Glue Crawler |
+| Policy | `glue-b3-dev-iam-athena-query` | Queries Athena (least privilege) |
+| Group | `glue-b3-dev-iam-grp-athena-analysts` | Analysts (`usuario-dados`) |
 
-### AWS Glue Data Catalog *(US-02 — planejado)*
+Principio: **least privilege** — permissoes limitadas aos ARNs do projeto.
 
-- Metadados centralizados (databases, tabelas, partições).
-- Consumido pelo Athena para resolver queries.
+### Glue Data Catalog — Database `b3_raw` (US-03)
 
-### Amazon Athena *(US-03 — planejado)*
+- Namespace logico para tabelas Ibovespa
+- Configuravel via `glue_db_name` (default: `b3_raw`)
+- Consumido pelo Athena para resolver schemas
 
-- Engine de consulta SQL serverless.
-- Lê dados diretamente do S3 via Glue Catalog.
-- Grava resultados no bucket athena-results.
+### Amazon Athena Workgroup (US-04)
 
-## Governança e tags
+| Config | Valor |
+|--------|-------|
+| Nome | `glue-b3-workgroup` |
+| Engine | Athena engine version 3 |
+| Output | `s3://...-athena-results-.../query-results/` |
+| Criptografia | SSE_S3 |
+| Enforce config | `true` |
 
-Todos os recursos recebem tags via `default_tags` do provider AWS:
+Engine v3 necessaria para window functions (MM7, MM30).
 
-| Tag | Valor | Origem |
-|-----|-------|--------|
-| `Project` | `glue-b3` | `var.project_name` |
-| `Environment` | `dev` | `var.environment` |
-| `ManagedBy` | `terraform` | fixo |
+### CloudWatch Logs (US-05)
 
-Buckets recebem tag adicional `Name` com o nome completo do bucket.
+| Config | Valor |
+|--------|-------|
+| Log group | `/aws-glue/crawlers/glue-b3-crawler` |
+| Retention | 14 dias |
 
-## Nomenclatura de recursos
+Centraliza logs do Glue Crawler para debugging.
 
-Padrão centralizado em `locals.tf`:
+### AWS Glue Crawler *(Sprint 2 — pendente)*
+
+- Varre bucket raw e infere schema
+- Registra tabelas em `b3_raw`
+- Role IAM e log group ja preparados
+
+## Governanca e tags
+
+Tags via `default_tags` do provider:
+
+| Tag | Valor |
+|-----|-------|
+| `Project` | `glue-b3` |
+| `Environment` | `dev` |
+| `ManagedBy` | `terraform` |
+
+## Nomenclatura
+
+Padrao em `locals.tf`:
 
 ```
 {project_name}-{environment}-{aws_service}-{purpose}[-{account_id}]
 ```
 
-Exemplos (dev):
+Excecoes logicas:
 
-| Recurso | Nome |
-|---------|------|
-| Bucket raw | `glue-b3-dev-s3-raw-303238378103` |
-| Bucket results | `glue-b3-dev-s3-athena-results-303238378103` |
-| Glue Database *(US-02)* | `glue-b3-dev-glue-db-catalog` |
-| Glue Crawler *(US-02)* | `glue-b3-dev-glue-crawler-raw` |
-| Athena Workgroup *(US-03)* | `glue-b3-dev-athena-wg-primary` |
+| Recurso | Nome | Motivo |
+|---------|------|--------|
+| Glue Database | `b3_raw` | Nome logico de negocio |
+| Athena Workgroup | `glue-b3-workgroup` | Spec US-04 |
+| Log Group | `/aws-glue/crawlers/glue-b3-crawler` | Padrao AWS |
 
-Detalhes completos: [Convenção de Nomenclatura](naming-convention.md).
+Detalhes: [Convencao de Nomenclatura](naming-convention.md)
 
-## Decisões de design
+## Decisoes de design
 
-| Decisão | Justificativa |
+| Decisao | Justificativa |
 |---------|---------------|
-| Sem módulos externos | Simplicidade e controle total no ambiente dev |
-| `force_destroy = true` | Facilita destruição de buckets com objetos em dev |
-| Conta no nome do bucket | Garante unicidade global e rastreabilidade |
-| Provider `default_tags` | Tags consistentes sem repetir em cada recurso |
-| Região `us-east-1` | Região padrão dev; Athena e Glue disponíveis |
+| Sem modulos externos | Simplicidade em dev |
+| `force_destroy = true` | Teardown facil |
+| `default_tags` | Tags consistentes |
+| Grupo IAM para analysts | Evita limite de 10 policies/user |
+| Engine Athena v3 | Window functions MM7/MM30 |
+| State local | Sprint 1; backend remoto recomendado para prod |
+
+## Validacao
+
+Sprint 1 validado via script:
+
+```powershell
+.\scripts\validate-sprint1.ps1 -VerifyOnly
+```
+
+Documentacao: [US-06 — Validacao Sprint 1](us-06-sprint1-validation.md)
 
 ## State do Terraform
 
-Atualmente o state é **local** (`terraform.tfstate`). Para ambientes compartilhados, migrar para backend remoto (S3 + DynamoDB lock) será recomendado nas próximas entregas.
+State **local** (`terraform.tfstate`). Para producao: backend S3 + DynamoDB lock + versioning.

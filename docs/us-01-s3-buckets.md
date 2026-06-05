@@ -194,11 +194,10 @@ Para remover todos os recursos da US-01:
 terraform destroy -var-file="terraform.tfvars"
 ```
 
-## Dependências para US-02
+## Dependências para Sprint 2 (Glue Crawler)
 
-A US-02 (Glue Crawler) utilizará:
-
-- **Input:** `glue-b3-dev-s3-raw-303238378103` — path S3 a ser crawleado
-- **Database:** `glue-b3-dev-glue-db-catalog`
+- **Input:** `glue-b3-dev-s3-raw-303238378103`
+- **Database:** `b3_raw`
 - **Crawler:** `glue-b3-dev-glue-crawler-raw`
 - **IAM Role:** `glue-b3-dev-iam-glue-crawler`
+- **Log Group:** `/aws-glue/crawlers/glue-b3-crawler`

@@ -1,105 +1,114 @@
-# Convenção de Nomenclatura
+# Convencao de Nomenclatura
 
-Padrão adotado para garantir consistência entre S3, Glue, Athena e IAM ao longo do pipeline.
+Padrao adotado para consistencia entre S3, Glue, Athena, IAM e CloudWatch.
 
-## Padrão geral
+## Padrao geral
 
 ```
 {project_name}-{environment}-{aws_service}-{purpose}[-{account_id}]
 ```
 
-| Segmento | Exemplo | Obrigatório | Descrição |
+| Segmento | Exemplo | Obrigatorio | Descricao |
 |----------|---------|-------------|-----------|
 | `project_name` | `glue-b3` | sim | Identificador do projeto |
 | `environment` | `dev` | sim | Ambiente (`dev`, `stg`, `prod`) |
-| `aws_service` | `s3`, `glue-db`, `athena-wg` | sim | Serviço AWS abreviado |
-| `purpose` | `raw`, `catalog`, `primary` | sim | Função do recurso |
-| `account_id` | `303238378103` | S3 only | Sufixo de unicidade global |
+| `aws_service` | `s3`, `iam`, `glue-crawler` | sim | Servico AWS abreviado |
+| `purpose` | `raw`, `athena-query` | sim | Funcao do recurso |
+| `account_id` | `303238378103` | S3 only | Unicidade global |
+
+### Excecoes (nomes logicos)
+
+| Recurso | Nome | Padrao |
+|---------|------|--------|
+| Glue Database | `b3_raw` | Variavel `glue_db_name` |
+| Athena Workgroup | `glue-b3-workgroup` | `{project_name}-workgroup` |
+| Log Group | `/aws-glue/crawlers/glue-b3-crawler` | Padrao AWS Glue |
 
 ### Regras
 
-- Apenas **lowercase**, números e hífens (`[a-z0-9-]`)
-- Separador único: hífen (`-`)
-- Ordem fixa dos segmentos — não inverter
-- `account_id` somente em buckets S3 (nome globalmente único)
-- Tags complementam a nomenclatura (`Project`, `Environment`, `ManagedBy`)
+- Lowercase, numeros e hifens (`[a-z0-9-]`) — underscore apenas em `b3_raw`
+- Separador: hifen (`-`)
+- `account_id` somente em buckets S3
+- Tags: `Project`, `Environment`, `ManagedBy`
 
-## Implementação Terraform
+## Implementacao Terraform
 
-Toda nomenclatura é centralizada em `locals.tf`:
+Centralizado em `locals.tf`:
 
 ```hcl
 name_prefix   = "${var.project_name}-${var.environment}"
 global_suffix = var.aws_account_id
+glue_database_name          = var.glue_db_name
+athena_workgroup_name       = "${var.project_name}-workgroup"
+glue_crawler_log_group_name = "/aws-glue/crawlers/${var.project_name}-crawler"
 ```
 
-Recursos futuros devem **sempre** usar `local.name_prefix` — nunca montar strings inline.
+## Catalogo de nomes — Sprint 1 (implementado)
 
-## Catálogo de nomes
+### US-01 — S3
 
-### US-01 — S3 (implementado)
+| Recurso | Nome (dev) |
+|---------|------------|
+| Bucket raw | `glue-b3-dev-s3-raw-303238378103` |
+| Bucket Athena results | `glue-b3-dev-s3-athena-results-303238378103` |
 
-| Recurso | Padrão | Exemplo (dev) |
+### US-02 — IAM
+
+| Recurso | Nome (dev) |
+|---------|------------|
+| Role Crawler | `glue-b3-dev-iam-glue-crawler` |
+| Policy Athena | `glue-b3-dev-iam-athena-query` |
+| Group Analysts | `glue-b3-dev-iam-grp-athena-analysts` |
+
+### US-03 — Glue Database
+
+| Recurso | Nome |
+|---------|------|
+| Database | `b3_raw` |
+
+### US-04 — Athena
+
+| Recurso | Nome |
+|---------|------|
+| Workgroup | `glue-b3-workgroup` |
+
+### US-05 — CloudWatch
+
+| Recurso | Nome |
+|---------|------|
+| Log Group | `/aws-glue/crawlers/glue-b3-crawler` |
+
+## Sprint 2 (reservado)
+
+| Recurso | Padrao | Exemplo (dev) |
 |---------|--------|---------------|
-| Bucket raw | `{prefix}-s3-raw-{account}` | `glue-b3-dev-s3-raw-303238378103` |
-| Bucket Athena results | `{prefix}-s3-athena-results-{account}` | `glue-b3-dev-s3-athena-results-303238378103` |
-
-### US-02 — Glue (reservado)
-
-| Recurso | Padrão | Exemplo (dev) |
-|---------|--------|---------------|
-| Glue Database | `{prefix}-glue-db-catalog` | `glue-b3-dev-glue-db-catalog` |
 | Glue Crawler | `{prefix}-glue-crawler-raw` | `glue-b3-dev-glue-crawler-raw` |
-| IAM Role (Crawler) | `{prefix}-iam-glue-crawler` | `glue-b3-dev-iam-glue-crawler` |
-| IAM Group (Analysts) | `{prefix}-iam-grp-athena-analysts` | `glue-b3-dev-iam-grp-athena-analysts` |
-| IAM Policy (Athena) | `{prefix}-iam-athena-query` | `glue-b3-dev-iam-athena-query` |
 
-### US-03 — Athena (reservado)
+## Abreviacoes
 
-| Recurso | Padrão | Exemplo (dev) |
-|---------|--------|---------------|
-| Workgroup | `{prefix}-athena-wg-primary` | `glue-b3-dev-athena-wg-primary` |
-
-## Abreviações de serviços AWS
-
-| Abreviação | Serviço |
+| Abreviacao | Servico |
 |------------|---------|
 | `s3` | Amazon S3 |
-| `glue-db` | AWS Glue Database |
-| `glue-crawler` | AWS Glue Crawler |
-| `athena-wg` | Amazon Athena Workgroup |
-| `iam` | IAM Role / Policy |
+| `iam` | IAM Role / Policy / Group |
+| `glue-db` | Glue Database |
+| `glue-crawler` | Glue Crawler |
+| `athena-wg` | Athena Workgroup |
 
-## Nomes no Terraform vs. AWS
+## Terraform vs AWS
 
-| Contexto | Convenção | Exemplo |
+| Contexto | Convencao | Exemplo |
 |----------|-----------|---------|
-| Nome físico na AWS | padrão acima | `glue-b3-dev-s3-raw-303238378103` |
-| Recurso Terraform | snake_case descritivo | `aws_s3_bucket.this["raw"]` |
-| Arquivo Terraform | por domínio | `locals.tf`, `main.tf`, `outputs.tf` |
-| Output Terraform | snake_case | `s3_bucket_raw_name` |
+| Nome AWS | padrao acima | `glue-b3-dev-s3-raw-303238378103` |
+| Recurso TF | snake_case / for_each | `aws_s3_bucket.this["raw"]` |
+| Arquivo TF | por dominio | `main.tf`, `iam.tf`, `glue.tf`, `athena.tf` |
+| Output TF | snake_case | `s3_bucket_raw_name` |
 
-## Prefixos por ambiente
-
-| Ambiente | Prefixo | Exemplo bucket raw |
-|----------|---------|-------------------|
-| dev | `glue-b3-dev-...` | `glue-b3-dev-s3-raw-303238378103` |
-| staging | `glue-b3-stg-...` | `glue-b3-stg-s3-raw-303238378103` |
-| prod | `glue-b3-prod-...` | `glue-b3-prod-s3-raw-303238378103` |
-
-## Migração da nomenclatura anterior
-
-| Antigo | Novo |
-|--------|------|
-| `glue-b3-raw-{account}` | `glue-b3-dev-s3-raw-{account}` |
-| `glue-b3-athena-results-{account}` | `glue-b3-dev-s3-athena-results-{account}` |
-
-> Aplicar a nova convenção **recria** os buckets S3. Em dev, com `force_destroy = true`, execute `terraform apply` e confirme a substituição.
-
-## Consultar nomes provisionados
+## Consultar nomes
 
 ```powershell
 terraform output
-terraform output s3_bucket_raw_name
 terraform output naming_convention
+terraform output glue_database_name
+terraform output athena_workgroup_name
+terraform output glue_crawler_log_group_name
 ```

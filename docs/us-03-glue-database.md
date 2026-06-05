@@ -29,7 +29,7 @@ SELECT * FROM b3_raw.stocks
 | Sem descoberta automática | Crawler atualiza metadados periodicamente |
 | Queries impossíveis ou frágeis | SQL padrão (`SELECT`, `JOIN`, `WHERE`) |
 
-O database **`b3_raw`** é o namespace lógico para todas as tabelas de dados brutos da B3/Ibovespa. Quando o Crawler (US-04) varrer o bucket raw, ele registrará tabelas **dentro** deste database.
+O database **`b3_raw`** é o namespace lógico para todas as tabelas de dados brutos da B3/Ibovespa. Quando o Crawler (Sprint 2) varrer o bucket raw, ele registrará tabelas **dentro** deste database.
 
 ## Como o Athena usa o database
 
@@ -122,6 +122,6 @@ aws glue get-tables --database-name b3_raw
 - [x] Description definida
 - [x] Outputs exportados (`glue_database_name`, `glue_database_arn`)
 
-## Próximo passo
+## Proximo passo
 
-- **US-04** — Glue Crawler apontando para o bucket raw, registrando tabelas em `b3_raw`
+- **Sprint 2** — Glue Crawler registrando tabelas em `b3_raw`
