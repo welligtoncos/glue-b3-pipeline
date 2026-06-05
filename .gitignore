@@ -18,3 +18,10 @@ override.tf.json
 # OS
 .DS_Store
 Thumbs.db
+
+# Python / dados locais
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+data/local/

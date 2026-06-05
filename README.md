@@ -19,6 +19,7 @@ S3 (raw) → Glue Crawler → Glue Catalog (b3_raw) → Athena
 | Consulta SQL | Amazon Athena Workgroup | ✅ US-04 |
 | Observabilidade | CloudWatch Log Group | ✅ US-05 |
 | Validacao Sprint 1 | Terraform plan/apply/verify | ✅ US-06 |
+| Ingestao local | Download Ibovespa (yfinance) | ✅ US-07 |
 | Glue Crawler | Catalogacao automatica S3 | 🔜 Sprint 2 |
 
 ## Ambiente
@@ -62,8 +63,9 @@ terraform apply tfplan
 ├── outputs.tf               # Outputs
 ├── scripts/
 │   ├── validate-sprint1.ps1 # Validacao Windows
-│   └── validate-sprint1.sh  # Validacao Bash/CI
-└── docs/                    # Documentacao (ver docs/README.md)
+│   ├── validate-sprint1.sh  # Validacao Bash/CI
+│   └── download_ibovespa.py # US-07: download yfinance
+├── requirements.txt         # Dependencias Python
 ```
 
 ## Recursos provisionados
@@ -108,6 +110,13 @@ terraform output glue_crawler_role_arn
 - [x] **US-05** — CloudWatch Log Group (14 dias)
 - [x] **US-06** — Validacao plan/apply/verify OK
 
+## Criterios de aceite — Sprint 2
+
+- [x] **US-07** — Script `download_ibovespa.py` funcional
+- [x] Tickers: PETR4, VALE3, ITUB4, BBDC4
+- [x] Colunas: ticker, date, open, high, low, close, volume
+- [x] Periodo >= 2018
+
 ## Validacao
 
 ```powershell
@@ -123,6 +132,7 @@ Indice completo: **[docs/README.md](docs/README.md)**
 | [Arquitetura](docs/architecture.md) | Componentes e fluxo de dados |
 | [Getting Started](docs/getting-started.md) | Deploy e troubleshooting |
 | [US-06 — Validacao](docs/us-06-sprint1-validation.md) | Checklist completo Sprint 1 |
+| [US-07 — Download Ibovespa](docs/us-07-download-ibovespa.md) | yfinance → CSV local |
 | [Convencao de Nomenclatura](docs/naming-convention.md) | Padrao de nomes |
 
 ## Destruir (dev)
@@ -133,4 +143,14 @@ terraform destroy -var-file="terraform.tfvars"
 
 ## Proximo passo — Sprint 2
 
-- **Glue Crawler** — catalogacao automatica do bucket raw → tabelas em `b3_raw`
+- Upload CSV para S3 raw (`stocks/`)
+- **Glue Crawler** — catalogacao automatica → tabelas em `b3_raw`
+
+### Download dados Ibovespa (US-07)
+
+```powershell
+pip install -r requirements.txt
+python scripts/download_ibovespa.py
+```
+
+Guia: [US-07 — Download Ibovespa](docs/us-07-download-ibovespa.md)

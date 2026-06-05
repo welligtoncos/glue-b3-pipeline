@@ -15,12 +15,19 @@ Indice da documentacao do projeto.
 | US-05 | [Glue Logs](us-05-glue-logs.md) | CloudWatch + troubleshooting |
 | US-06 | [Validacao Sprint 1](us-06-sprint1-validation.md) | Checklist plan/apply/verify |
 
+## Sprint 2 — Em progresso
+
+| US | Documento | Status |
+|----|-----------|--------|
+| US-07 | [Download Ibovespa](us-07-download-ibovespa.md) | ✅ Concluida |
+
 ## Scripts
 
 | Script | Plataforma | Uso |
 |--------|------------|-----|
 | `scripts/validate-sprint1.ps1` | Windows | `.\scripts\validate-sprint1.ps1 -VerifyOnly` |
 | `scripts/validate-sprint1.sh` | Bash / CI | `./scripts/validate-sprint1.sh --verify-only` |
+| `scripts/download_ibovespa.py` | Python | `python scripts/download_ibovespa.py` |
 
 ## Arquivos Terraform
 
