@@ -24,6 +24,12 @@ Indice da documentacao do projeto.
 | US-09 | [Validacao dados S3](us-09-validate-data.md) | ✅ Concluida |
 | US-10 | [README principal](../README.md) | ✅ Guia de ingestao completo |
 
+## Sprint 3 — Catalogacao
+
+| US | Documento | Status |
+|----|-----------|--------|
+| US-12 | [Glue Crawler](us-12-glue-crawler.md) | ✅ Concluida (validacao Athena no guia) |
+
 ## Scripts
 
 | Script | Plataforma | Uso |
@@ -39,16 +45,11 @@ Indice da documentacao do projeto.
 |---------|-----|----------|
 | `main.tf` | US-01 | S3 buckets |
 | `iam.tf` | US-02 | IAM Role, Policies, Group |
-| `glue.tf` | US-03, US-05 | Glue Database, CloudWatch Log Group |
+| `glue.tf` | US-03, US-05, US-12 | Glue Database, Crawler, CloudWatch Log Group |
 | `athena.tf` | US-04 | Athena Workgroup |
 | `locals.tf` | — | Nomenclatura centralizada |
 | `variables.tf` | — | Variaveis de entrada |
 | `outputs.tf` | — | ARNs e nomes exportados |
-
-## Sprint 2 — Pendente
-
-- Glue Crawler (`glue-b3-dev-glue-crawler-raw`)
-- Catalogacao automatica S3 → tabelas em `b3_raw`
 
 ## Links rapidos
 

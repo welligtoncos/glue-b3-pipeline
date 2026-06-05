@@ -6,3 +6,6 @@ environment    = "dev"
 glue_db_name   = "b3_raw"
 
 athena_analyst_users = ["seu-usuario-iam"]
+
+# Opcional: agendar crawler (descomente para execucao diaria 06:00 UTC)
+# crawler_schedule = "cron(0 6 * * ? *)"

@@ -36,7 +36,7 @@ s3://{bucket}/raw/ibovespa/
 └── ticker=VALE3/VALE3.csv
 ```
 
-Cada arquivo contém as colunas: `ticker, date, open, high, low, close, volume`.
+Cada arquivo contém: `date, open, high, low, close, volume` (sem `ticker` no CSV — a coluna `ticker` vem da particao Hive `ticker=PETR4/` e evita erro `HIVE_INVALID_METADATA` no Athena).
 
 ## Criterios de aceite — US-08
 

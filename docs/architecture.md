@@ -4,6 +4,17 @@
 
 Pipeline de dados para análise de ações da B3 (Ibovespa): ingestão no S3, catalogação via Glue e consultas SQL via Athena.
 
+## Problema e valor
+
+| Antes | Depois (este pipeline) |
+|-------|------------------------|
+| CSVs locais / APIs sem padrao na nuvem | Dados no S3 com particao Hive por ticker |
+| Sem catalogo de schema | Glue Catalog (`b3_raw.ibovespa`) |
+| Consulta manual ou ETL pesado | SQL no Athena (engine v3) |
+| Ambiente nao reproduzivel | Terraform + scripts + README |
+
+A query `SELECT ... FROM b3_raw.ibovespa WHERE ticker = 'PETR4' LIMIT 10` valida que a cadeia **S3 → Crawler → Athena** esta operacional antes de analises (MM7, comparacao entre tickers, etc.).
+
 ```mermaid
 flowchart LR
     subgraph ingestao [Ingestao]
@@ -21,7 +32,7 @@ flowchart LR
 
     subgraph catalog [Catalogacao]
         DB[(Glue DB b3_raw - US-03)]
-        CRAWLER[Glue Crawler - Sprint 2]
+        CRAWLER[Glue Crawler - US-12]
     end
 
     subgraph query [Consulta - US-04]
@@ -54,7 +65,7 @@ flowchart LR
 | Glue Database `b3_raw` | US-03 | ✅ | `glue.tf` |
 | Athena Workgroup | US-04 | ✅ | `athena.tf` |
 | CloudWatch Log Group | US-05 | ✅ | `glue.tf` |
-| Glue Crawler | Sprint 2 | 🔜 | — |
+| Glue Crawler | US-12 | ✅ | `glue.tf` |
 
 ## Componentes
 

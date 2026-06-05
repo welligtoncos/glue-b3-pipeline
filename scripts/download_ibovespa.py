@@ -25,6 +25,8 @@ DEFAULT_OUTPUT = Path("data/local/ibovespa_stocks.csv")
 S3_PREFIX = "raw/ibovespa"
 
 OUTPUT_COLUMNS = ["ticker", "date", "open", "high", "low", "close", "volume"]
+# S3 Hive: ticker vem do path ticker=PETR4/ — nao repetir no CSV (evita HIVE_INVALID_METADATA)
+S3_UPLOAD_COLUMNS = ["date", "open", "high", "low", "close", "volume"]
 
 
 def to_yfinance_symbol(ticker: str) -> str:
@@ -114,7 +116,7 @@ def upload_to_s3(df: pd.DataFrame, bucket: str) -> list[dict[str, str | int]]:
 
     for ticker, group in df.groupby("ticker", sort=True):
         buffer = io.StringIO()
-        group.to_csv(buffer, index=False)
+        group[S3_UPLOAD_COLUMNS].to_csv(buffer, index=False)
         body = buffer.getvalue().encode("utf-8")
         key = s3_partition_key(str(ticker))
         line_count = len(group)

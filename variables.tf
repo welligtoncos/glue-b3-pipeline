@@ -51,3 +51,9 @@ variable "environment" {
     error_message = "environment deve ser: dev, stg, staging ou prod."
   }
 }
+
+variable "crawler_schedule" {
+  description = "Expressao cron do Glue Crawler (ex.: cron(0 6 * * ? *)). Null = execucao sob demanda."
+  type        = string
+  default     = null
+}

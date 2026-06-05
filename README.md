@@ -14,6 +14,45 @@ Ambiente de referência: `dev` · região `us-east-1` · projeto `glue-b3`.
 
 ---
 
+## O que este pipeline resolve?
+
+**Antes:** cotações em CSVs locais ou APIs soltas, sem padrão na nuvem, difíceis de consultar com SQL e sem catálogo de dados.
+
+**Depois:** um fluxo repetível na AWS — qualquer dev com o README consegue reproduzir.
+
+| Problema | Solução no projeto |
+|----------|-------------------|
+| Onde persistir os dados? | S3 raw com partição Hive por `ticker` |
+| Como descobrir schema e partições? | Glue Crawler → tabela `b3_raw.ibovespa` |
+| Como consultar sem cluster Spark? | Athena (SQL) no workgroup `glue-b3-workgroup` |
+| Dados confiáveis antes de catalogar? | `validate_data.py` (schema, datas, preços, volume) |
+| Infra e segurança reproduzíveis? | Terraform (S3, IAM, Glue DB, Athena, logs) |
+
+**Próximos passos analíticos** (com a tabela consultável): comparar tickers, médias móveis (MM7/MM30), séries desde 2018, relatórios e dashboards.
+
+### Query de validação no Athena
+
+A consulta abaixo **não é a análise final** — ela prova que a cadeia **S3 → Glue → Athena** funciona:
+
+```sql
+SELECT ticker, date, close, volume
+FROM b3_raw.ibovespa
+WHERE ticker = 'PETR4'
+ORDER BY date DESC
+LIMIT 10;
+```
+
+| O que valida | Por quê |
+|--------------|---------|
+| Database `b3_raw` e tabela `ibovespa` | Crawler catalogou o prefixo S3 |
+| Partição `ticker = 'PETR4'` | Layout Hive `ticker=PETR4/` está correto |
+| Colunas `date`, `close`, `volume` | Schema inferido bate com os CSVs |
+| 10 linhas recentes | Leitura ponta a ponta sem erro de metadados |
+
+Use **database `b3_raw`** (não outro, ex.: `rh_db`) e workgroup **`glue-b3-workgroup`**. Se retornar dados, o pipeline está pronto para análises SQL mais avançadas.
+
+---
+
 ## Arquitetura
 
 ```
@@ -51,7 +90,7 @@ Ambiente de referência: `dev` · região `us-east-1` · projeto `glue-b3`.
 |-------|---------|--------|
 | Infra base | S3, IAM, Glue DB, Athena, Logs | ✅ Terraform |
 | Download + upload + validação | Python | ✅ US-07 a US-09 |
-| Glue Crawler | Glue | ⚙️ Configuração manual (passo 8) |
+| Glue Crawler | Glue | ✅ Terraform (US-12) · execução passo 9 |
 
 Documentação detalhada por US: **[docs/README.md](docs/README.md)**
 
@@ -207,38 +246,25 @@ Critérios: colunas corretas, `date` YYYY-MM-DD, `close > 0`, `volume > 0`, sem 
 
 ### 9. Executar o Glue Crawler
 
-O Crawler **ainda não está no Terraform**; crie uma vez no console ou via CLI (role e database já existem).
-
-**Console AWS:** Glue → Crawlers → Create crawler
-
-| Campo | Valor |
-|-------|-------|
-| Name | `glue-b3-dev-glue-crawler-raw` |
-| IAM Role | `glue-b3-dev-iam-glue-crawler` (output `glue_crawler_role_arn`) |
-| Database | `b3_raw` |
-| S3 path | `s3://<bucket-raw>/raw/ibovespa/` |
-| Log group | `/aws-glue/crawlers/glue-b3-crawler` |
-
-Execute o crawler e aguarde status **Succeeded**. A tabela costuma ser nomeada **`ibovespa`** (confira em Glue → Tables).
-
-**CLI (alternativa):**
+O crawler é provisionado pelo Terraform (`glue.tf`, US-12) no passo 4. Após dados validados no S3, **inicie a catalogação**:
 
 ```powershell
-$bucket = terraform output -raw s3_bucket_raw_name
-$role   = terraform output -raw glue_crawler_role_arn
+$crawler = terraform output -raw glue_crawler_name
 
-aws glue create-crawler `
-  --name glue-b3-dev-glue-crawler-raw `
-  --role $role `
-  --database-name b3_raw `
-  --targets "S3Targets=[{Path=s3://$bucket/raw/ibovespa/}]" `
-  --schema-change-policy "UpdateBehavior=UPDATE_IN_DATABASE,DeleteBehavior=LOG"
-
-aws glue start-crawler --name glue-b3-dev-glue-crawler-raw
-aws glue get-crawler --name glue-b3-dev-glue-crawler-raw --query Crawler.LastCrawl.Status
+aws glue start-crawler --name $crawler
 ```
 
-Logs de erro:
+Verificar estado (aguarde **SUCCEEDED**):
+
+```powershell
+aws glue get-crawler --name $crawler --query "Crawler.{State:State,LastCrawl:LastCrawl}"
+```
+
+Tabela esperada: **`b3_raw.ibovespa`** (partição `ticker`).
+
+> Se o crawler foi criado manualmente antes da US-12: `terraform import aws_glue_crawler.ibovespa glue-b3-dev-glue-crawler-raw`
+
+**Monitoramento — logs de erro:**
 
 ```powershell
 aws logs filter-log-events `
@@ -246,14 +272,17 @@ aws logs filter-log-events `
   --filter-pattern "ERROR"
 ```
 
+Guia completo: [US-12 — Glue Crawler](docs/us-12-glue-crawler.md)
+
 ### 10. Queries no Athena
 
 1. Console **Athena** → Workgroup **`glue-b3-workgroup`**
 2. Data source: **AwsDataCatalog** · Database **`b3_raw`**
-3. Exemplos (ajuste o nome da tabela se o Crawler gerou outro):
+3. **Primeiro:** rode a [query de validação](#query-de-validação-no-athena) (10 linhas da PETR4).
+4. Depois, análises de exemplo (ajuste o nome da tabela se o Crawler gerou outro):
 
 ```sql
--- Amostra por ticker (usa partição)
+-- Validação: 10 pregões mais recentes da PETR4 (prova fim a fim)
 SELECT ticker, date, close, volume
 FROM b3_raw.ibovespa
 WHERE ticker = 'PETR4'
@@ -300,7 +329,7 @@ Resultados em: `s3://<bucket-athena-results>/query-results/` (output `terraform 
 project-glue-2/
 ├── main.tf                      # S3 buckets (raw + athena-results)
 ├── iam.tf                       # Role Crawler, policies, grupo Athena
-├── glue.tf                      # Glue Database b3_raw + CloudWatch Logs
+├── glue.tf                      # Glue DB, Crawler (US-12), CloudWatch Logs
 ├── athena.tf                    # Workgroup glue-b3-workgroup
 ├── locals.tf                    # Nomenclatura centralizada
 ├── variables.tf
@@ -414,4 +443,5 @@ terraform destroy -var-file="terraform.tfvars"
 | [US-07 Download](docs/us-07-download-ibovespa.md) | yfinance |
 | [US-08 Upload S3](docs/us-08-upload-s3.md) | Partição Hive |
 | [US-09 Validação](docs/us-09-validate-data.md) | Qualidade de dados |
+| [US-12 Glue Crawler](docs/us-12-glue-crawler.md) | Catalogação Terraform |
 | [Nomenclatura](docs/naming-convention.md) | Padrão de nomes AWS |

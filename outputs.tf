@@ -103,3 +103,18 @@ output "glue_crawler_log_group_arn" {
   description = "ARN do CloudWatch Log Group do Glue Crawler."
   value       = aws_cloudwatch_log_group.glue_crawler.arn
 }
+
+output "glue_crawler_name" {
+  description = "Nome do Glue Crawler Ibovespa."
+  value       = aws_glue_crawler.ibovespa.name
+}
+
+output "glue_crawler_s3_target" {
+  description = "S3 path alvo do Glue Crawler."
+  value       = local.glue_crawler_s3_target
+}
+
+output "glue_crawler_table_name" {
+  description = "Nome esperado da tabela no Glue Catalog (inferido do prefixo ibovespa/)."
+  value       = local.glue_crawler_table_name
+}
