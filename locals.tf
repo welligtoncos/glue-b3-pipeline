@@ -23,9 +23,12 @@ locals {
 
   # Reservado para US-02 e US-03
   # Glue Data Catalog — nome logico configuravel (ex.: b3_raw)
-  glue_database_name        = var.glue_db_name
-  glue_crawler_name         = "${local.name_prefix}-glue-crawler-raw"
-  athena_workgroup_name     = "${var.project_name}-workgroup"
-  iam_role_glue_crawler     = "${local.name_prefix}-iam-glue-crawler"
-  iam_group_athena_analysts = "${local.name_prefix}-iam-grp-athena-analysts"
+  glue_database_name                = var.glue_db_name
+  glue_crawler_name                 = "${local.name_prefix}-glue-crawler-raw"
+  glue_crawler_log_group_name       = "/aws-glue/crawlers/${var.project_name}-crawler"
+  glue_crawler_log_group_arn        = "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:${local.glue_crawler_log_group_name}"
+  glue_crawler_log_group_stream_arn = "${local.glue_crawler_log_group_arn}:*"
+  athena_workgroup_name             = "${var.project_name}-workgroup"
+  iam_role_glue_crawler             = "${local.name_prefix}-iam-glue-crawler"
+  iam_group_athena_analysts         = "${local.name_prefix}-iam-grp-athena-analysts"
 }

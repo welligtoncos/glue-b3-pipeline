@@ -93,3 +93,13 @@ output "athena_output_location" {
   description = "S3 path de saida das queries Athena."
   value       = local.athena_output_location
 }
+
+output "glue_crawler_log_group_name" {
+  description = "Nome do CloudWatch Log Group do Glue Crawler."
+  value       = aws_cloudwatch_log_group.glue_crawler.name
+}
+
+output "glue_crawler_log_group_arn" {
+  description = "ARN do CloudWatch Log Group do Glue Crawler."
+  value       = aws_cloudwatch_log_group.glue_crawler.arn
+}

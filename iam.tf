@@ -1,6 +1,4 @@
 locals {
-  glue_crawler_log_group = "/aws-glue/crawlers"
-
   iam_athena_query_policy_name = "${local.name_prefix}-iam-athena-query"
 
   s3_bucket_arns = [
@@ -20,9 +18,6 @@ locals {
   ]
 
   athena_workgroup_arn = "arn:aws:athena:${var.aws_region}:${var.aws_account_id}:workgroup/${local.athena_workgroup_name}"
-
-  glue_crawler_log_group_arn        = "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:${local.glue_crawler_log_group}"
-  glue_crawler_log_group_stream_arn = "${local.glue_crawler_log_group_arn}:*"
 }
 
 # ---------------------------------------------------------------------------

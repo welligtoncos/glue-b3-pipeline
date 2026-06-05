@@ -17,7 +17,8 @@ S3 (raw) → Glue Crawler → Glue Catalog → Athena
 | Segurança (IAM) | Roles, Policies, Groups | ✅ US-02 |
 | Glue Database | Glue Data Catalog (`b3_raw`) | ✅ US-03 |
 | Consulta SQL | Amazon Athena Workgroup | ✅ US-04 |
-| Glue Crawler | Catalogação automática S3 | 🔜 US-05 |
+| Observabilidade | CloudWatch Log Group (Glue) | ✅ US-05 |
+| Glue Crawler | Catalogação automática S3 | 🔜 US-06 |
 
 ## Ambiente
 
@@ -136,6 +137,14 @@ Padrão: `{project}-{env}-iam-{purpose}`
 | Engine | Athena engine version 3 |
 | Criptografia | SSE_S3 |
 
+### US-05 — CloudWatch Log Group
+
+| Recurso Terraform | Nome |
+|-------------------|------|
+| `aws_cloudwatch_log_group.glue_crawler` | `/aws-glue/crawlers/glue-b3-crawler` |
+
+Retenção: **14 dias**. Guia: [US-05 — Glue Logs](docs/us-05-glue-logs.md)
+
 Permissões do grupo Athena (least privilege):
 
 - Athena: `StartQueryExecution`, `GetQueryExecution`, `GetQueryResults`, `StopQueryExecution`
@@ -184,6 +193,12 @@ terraform output naming_convention              # nomes reservados US-05
 - [x] Engine v3 selecionado
 - [x] Encrypt SSE_S3
 
+### US-05 — CloudWatch Log Group
+
+- [x] Log group `/aws-glue/crawlers/glue-b3-crawler` criado
+- [x] Retention 14 dias
+- [x] Tags aplicadas
+
 ## Verificação rápida
 
 ```powershell
@@ -205,6 +220,10 @@ terraform output glue_database_name
 aws athena get-work-group --work-group glue-b3-workgroup
 terraform output athena_workgroup_name
 
+# CloudWatch Log Group (Glue)
+aws logs describe-log-groups --log-group-name-prefix "/aws-glue/crawlers/glue-b3-crawler"
+terraform output glue_crawler_log_group_name
+
 # Drift
 terraform plan -var-file="terraform.tfvars"
 ```
@@ -221,7 +240,8 @@ Padrão centralizado em `locals.tf`:
 |----|---------|------|
 | US-03 | Glue Database | `b3_raw` |
 | US-04 | Athena Workgroup | `glue-b3-workgroup` |
-| US-05 | Glue Crawler | `glue-b3-dev-glue-crawler-raw` |
+| US-05 | CloudWatch Log Group | `/aws-glue/crawlers/glue-b3-crawler` |
+| US-06 | Glue Crawler | `glue-b3-dev-glue-crawler-raw` |
 
 Detalhes: [Convenção de Nomenclatura](docs/naming-convention.md)
 
@@ -246,4 +266,4 @@ Buckets usam `force_destroy = true` — objetos são removidos junto.
 
 ## Próximas entregas
 
-- **US-05** — Glue Crawler apontando para o bucket raw
+- **US-06** — Glue Crawler apontando para o bucket raw
