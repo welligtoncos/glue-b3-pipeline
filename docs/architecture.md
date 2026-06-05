@@ -6,14 +6,15 @@ Pipeline de dados para análise de ações da B3 (Ibovespa): ingestão no S3, ca
 
 ## Problema e valor
 
-| Antes | Depois (este pipeline) |
-|-------|------------------------|
-| CSVs locais / APIs sem padrao na nuvem | Dados no S3 com particao Hive por ticker |
-| Sem catalogo de schema | Glue Catalog (`b3_raw.ibovespa`) |
-| Consulta manual ou ETL pesado | SQL no Athena (engine v3) |
-| Ambiente nao reproduzivel | Terraform + scripts + README |
+Tres problemas praticos (detalhes no [README](../README.md#o-que-este-projeto-resolve)):
 
-A query `SELECT ... FROM b3_raw.ibovespa WHERE ticker = 'PETR4' LIMIT 10` valida que a cadeia **S3 → Crawler → Athena** esta operacional antes de analises (MM7, comparacao entre tickers, etc.).
+1. **Acesso organizado** — S3 padronizado em vez de CSV local/Excel
+2. **Catalogo automatico** — Glue Crawler registra `b3_raw.ibovespa`
+3. **SQL sem banco gerenciado** — Athena paga por consulta, sem RDS/Redshift fixo
+
+A query `SELECT ... FROM b3_raw.ibovespa WHERE ticker = 'PETR4' LIMIT 10` valida que a cadeia **S3 → Crawler → Athena** esta operacional antes de analises (MM7, MM30, regressao).
+
+**Limites:** nao e trading, nao e tempo real, nao inclui dashboards; multi-dominio fica fora do escopo deste repo.
 
 ```mermaid
 flowchart LR

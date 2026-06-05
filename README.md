@@ -14,21 +14,50 @@ Ambiente de referência: `dev` · região `us-east-1` · projeto `glue-b3`.
 
 ---
 
-## O que este pipeline resolve?
+## O que este projeto resolve?
 
-**Antes:** cotações em CSVs locais ou APIs soltas, sem padrão na nuvem, difíceis de consultar com SQL e sem catálogo de dados.
+Este pipeline resolve **três problemas práticos** de quem trabalha com dados de ações da B3:
 
-**Depois:** um fluxo repetível na AWS — qualquer dev com o README consegue reproduzir.
+### 1. Acesso organizado aos dados
 
-| Problema | Solução no projeto |
-|----------|-------------------|
-| Onde persistir os dados? | S3 raw com partição Hive por `ticker` |
-| Como descobrir schema e partições? | Glue Crawler → tabela `b3_raw.ibovespa` |
-| Como consultar sem cluster Spark? | Athena (SQL) no workgroup `glue-b3-workgroup` |
-| Dados confiáveis antes de catalogar? | `validate_data.py` (schema, datas, preços, volume) |
-| Infra e segurança reproduzíveis? | Terraform (S3, IAM, Glue DB, Athena, logs) |
+Hoje, para analisar PETR4, VALE3 ou ITUB4, é comum baixar CSV do Kaggle, abrir no Excel e trabalhar localmente — dado preso na máquina de uma pessoa, sem histórico padronizado e sem escala.
 
-**Próximos passos analíticos** (com a tabela consultável): comparar tickers, médias móveis (MM7/MM30), séries desde 2018, relatórios e dashboards.
+**Este projeto** coloca tudo no **S3** com estrutura Hive (`raw/ibovespa/ticker=.../`), acessível por qualquer ferramenta AWS, com ingestão via **yfinance** (ou Kaggle adaptado ao mesmo layout).
+
+### 2. Catálogo automático de metadados
+
+Sem o Glue Data Catalog, cada analista precisa saber onde estão os arquivos, qual o schema e quais colunas existem.
+
+Com o **Glue Crawler**, o catálogo **descobre e registra o schema sozinho**. Athena, QuickSight e SageMaker enxergam a tabela **`b3_raw.ibovespa`** sem configuração manual de colunas.
+
+### 3. Análise e previsão sem infraestrutura de banco de dados
+
+Rodar SQL em histórico de ações sem este pipeline costuma exigir **RDS ou Redshift** — custo fixo mensal, servidor e operação.
+
+Com **Athena**, você paga **só pelo volume escaneado**. Queries de MM7, MM30 e regressão linear rodam **sob demanda**, sem servidor dedicado e sem DBA.
+
+| Camada | O que entrega |
+|--------|----------------|
+| S3 + scripts | Dados padronizados e validados (`validate_data.py`) |
+| Glue Crawler | Tabela `ibovespa` com partição `ticker` |
+| Athena | SQL analítico no workgroup `glue-b3-workgroup` |
+| Terraform | Ambiente reproduzível por qualquer dev |
+
+### O que um analista consegue fazer (com o projeto no ar)
+
+- Consultar preço de fechamento de qualquer ticker do pipeline **desde 2018** em segundos (SQL no Athena)
+- Avaliar se PETR4 está em tendência de alta ou baixa (**cruzamento MM7/MM30**)
+- Obter projeção estatística simples de preço para os **próximos 7 ou 30 dias** (regressão linear)
+- Exportar resultados em **CSV** direto do Athena para compartilhar com o time
+
+### O que este projeto **não** resolve (limites importantes)
+
+| Limite | Detalhe |
+|--------|---------|
+| **Não é sistema de trading** | Regressão e sinais são **ilustrativos** — não são recomendação de investimento |
+| **Não é tempo real** | Atualização via script sob demanda (agendamento opcional no Crawler); não há feed ao vivo |
+| **Não inclui dashboards** | Para gráficos, conecte **QuickSight** ou **Grafana** por cima do Athena/Glue |
+| **Não é Data Mesh multi-domínio** | Escopo: Ibovespa/B3 neste repositório; múltiplos domínios = evolução futura (Projeto 4/5) |
 
 ### Query de validação no Athena
 
