@@ -16,8 +16,8 @@ S3 (raw) → Glue Crawler → Glue Catalog → Athena
 | Armazenamento de queries | Amazon S3 | ✅ US-01 |
 | Segurança (IAM) | Roles, Policies, Groups | ✅ US-02 |
 | Glue Database | Glue Data Catalog (`b3_raw`) | ✅ US-03 |
-| Glue Crawler | Catalogação automática S3 | 🔜 US-04 |
-| Consulta SQL | Amazon Athena Workgroup | 🔜 US-05 |
+| Consulta SQL | Amazon Athena Workgroup | ✅ US-04 |
+| Glue Crawler | Catalogação automática S3 | 🔜 US-05 |
 
 ## Ambiente
 
@@ -74,6 +74,7 @@ athena_analyst_users = ["$USER_NAME"]
 ├── main.tf                  # US-01: buckets S3
 ├── iam.tf                   # US-02: IAM Role, Policies e Group
 ├── glue.tf                  # US-03: Glue Database (Data Catalog)
+├── athena.tf                # US-04: Athena Workgroup
 ├── locals.tf                # Padrão centralizado de nomenclatura
 ├── variables.tf             # Variáveis de entrada
 ├── outputs.tf               # Nomes, ARNs e referências
@@ -126,6 +127,15 @@ Padrão: `{project}-{env}-iam-{purpose}`
 |-------------------|------|
 | `aws_glue_catalog_database.this` | `b3_raw` |
 
+### US-04 — Athena Workgroup
+
+| Recurso Terraform | Nome / Config |
+|-------------------|---------------|
+| `aws_athena_workgroup.this` | `glue-b3-workgroup` |
+| Output location | `s3://...-athena-results-.../query-results/` |
+| Engine | Athena engine version 3 |
+| Criptografia | SSE_S3 |
+
 Permissões do grupo Athena (least privilege):
 
 - Athena: `StartQueryExecution`, `GetQueryExecution`, `GetQueryResults`, `StopQueryExecution`
@@ -140,7 +150,9 @@ terraform output glue_crawler_role_arn          # ARN da role do crawler
 terraform output athena_query_policy_arn        # ARN da policy Athena
 terraform output athena_analysts_group_name     # grupo de analysts
 terraform output glue_database_name              # database b3_raw
-terraform output naming_convention              # nomes reservados US-04/05
+terraform output athena_workgroup_name           # glue-b3-workgroup
+terraform output athena_output_location        # path de saída das queries
+terraform output naming_convention              # nomes reservados US-05
 ```
 
 ## Critérios de aceite
@@ -165,6 +177,13 @@ terraform output naming_convention              # nomes reservados US-04/05
 - [x] Nome: `b3_raw`
 - [x] Description preenchida
 
+### US-04 — Athena Workgroup
+
+- [x] Workgroup criado
+- [x] Output location configurado
+- [x] Engine v3 selecionado
+- [x] Encrypt SSE_S3
+
 ## Verificação rápida
 
 ```powershell
@@ -182,6 +201,10 @@ aws iam list-groups-for-user --user-name usuario-dados
 aws glue get-database --name b3_raw
 terraform output glue_database_name
 
+# Athena Workgroup
+aws athena get-work-group --work-group glue-b3-workgroup
+terraform output athena_workgroup_name
+
 # Drift
 terraform plan -var-file="terraform.tfvars"
 ```
@@ -197,8 +220,8 @@ Padrão centralizado em `locals.tf`:
 | US | Recurso | Nome |
 |----|---------|------|
 | US-03 | Glue Database | `b3_raw` |
-| US-04 | Glue Crawler | `glue-b3-dev-glue-crawler-raw` |
-| US-05 | Athena Workgroup | `glue-b3-dev-athena-wg-primary` |
+| US-04 | Athena Workgroup | `glue-b3-workgroup` |
+| US-05 | Glue Crawler | `glue-b3-dev-glue-crawler-raw` |
 
 Detalhes: [Convenção de Nomenclatura](docs/naming-convention.md)
 
@@ -210,6 +233,7 @@ Detalhes: [Convenção de Nomenclatura](docs/naming-convention.md)
 | [Getting Started](docs/getting-started.md) | Pré-requisitos, deploy e troubleshooting |
 | [US-01 — Buckets S3](docs/us-01-s3-buckets.md) | Spec e testes dos buckets |
 | [US-03 — Glue Database](docs/us-03-glue-database.md) | Data Catalog e database `b3_raw` |
+| [US-04 — Athena Workgroup](docs/us-04-athena-workgroup.md) | Workgroup, engine v3 e custos |
 | [Convenção de Nomenclatura](docs/naming-convention.md) | Padrão de nomes AWS |
 
 ## Destruir recursos (dev)
@@ -222,5 +246,4 @@ Buckets usam `force_destroy = true` — objetos são removidos junto.
 
 ## Próximas entregas
 
-- **US-04** — Glue Crawler apontando para o bucket raw
-- **US-05** — Athena Workgroup com saída no bucket athena-results
+- **US-05** — Glue Crawler apontando para o bucket raw

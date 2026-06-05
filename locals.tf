@@ -25,7 +25,7 @@ locals {
   # Glue Data Catalog — nome logico configuravel (ex.: b3_raw)
   glue_database_name        = var.glue_db_name
   glue_crawler_name         = "${local.name_prefix}-glue-crawler-raw"
-  athena_workgroup_name     = "${local.name_prefix}-athena-wg-primary"
+  athena_workgroup_name     = "${var.project_name}-workgroup"
   iam_role_glue_crawler     = "${local.name_prefix}-iam-glue-crawler"
   iam_group_athena_analysts = "${local.name_prefix}-iam-grp-athena-analysts"
 }

@@ -78,3 +78,18 @@ output "glue_database_arn" {
   description = "ARN do Glue Database no Data Catalog."
   value       = aws_glue_catalog_database.this.arn
 }
+
+output "athena_workgroup_name" {
+  description = "Nome do Athena Workgroup."
+  value       = aws_athena_workgroup.this.name
+}
+
+output "athena_workgroup_arn" {
+  description = "ARN do Athena Workgroup."
+  value       = aws_athena_workgroup.this.arn
+}
+
+output "athena_output_location" {
+  description = "S3 path de saida das queries Athena."
+  value       = local.athena_output_location
+}
