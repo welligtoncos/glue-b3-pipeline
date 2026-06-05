@@ -71,7 +71,14 @@ def download_ticker(ticker: str, start: str, end: str | None) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Colunas ausentes para {ticker}: {missing}")
 
-    return df[OUTPUT_COLUMNS]
+    df = df[OUTPUT_COLUMNS]
+    df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
+    zero_volume = int((df["volume"] <= 0).sum())
+    if zero_volume:
+        print(f"  Removendo {zero_volume} linha(s) com volume <= 0 para {ticker}")
+        df = df[df["volume"] > 0]
+
+    return df.reset_index(drop=True)
 
 
 def download_ibovespa(

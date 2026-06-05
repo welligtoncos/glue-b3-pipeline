@@ -98,4 +98,5 @@ Requisitos para deteccao automatica:
 
 ## Proximo passo
 
+- Validar dados: [US-09 — Validacao](us-09-validate-data.md)
 - **Glue Crawler** — catalogar `raw/ibovespa/` → tabela em `b3_raw`

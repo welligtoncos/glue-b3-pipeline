@@ -52,6 +52,8 @@ Arquivo default: `data/local/ibovespa_stocks.csv`
 
 > B3 exige sufixo `.SA` no yfinance.
 
+Linhas com `volume <= 0` (artefato ocasional do yfinance) sao removidas automaticamente antes de salvar/enviar ao S3, alinhado a validacao US-09 (`volume > 0`).
+
 ## Criterios de aceite — US-07
 
 - [x] Script `download_ibovespa.py` funcional

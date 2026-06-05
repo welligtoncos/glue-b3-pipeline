@@ -21,6 +21,7 @@ S3 (raw) → Glue Crawler → Glue Catalog (b3_raw) → Athena
 | Validacao Sprint 1 | Terraform plan/apply/verify | ✅ US-06 |
 | Ingestao local | Download Ibovespa (yfinance) | ✅ US-07 |
 | Ingestao S3 | Upload CSV particionado (Hive) | ✅ US-08 |
+| Qualidade de dados | Validacao schema CSVs no S3 | ✅ US-09 |
 | Glue Crawler | Catalogacao automatica S3 | 🔜 Sprint 2 |
 
 ## Ambiente
@@ -65,7 +66,8 @@ terraform apply tfplan
 ├── scripts/
 │   ├── validate-sprint1.ps1 # Validacao Windows
 │   ├── validate-sprint1.sh  # Validacao Bash/CI
-│   └── download_ibovespa.py # US-07: download yfinance
+│   ├── download_ibovespa.py # US-07/08: download + upload S3
+│   └── validate_data.py     # US-09: validacao CSVs no S3
 ├── requirements.txt         # Dependencias Python
 ```
 
@@ -120,6 +122,8 @@ terraform output glue_crawler_role_arn
 - [x] **US-08** — Upload S3 com particao Hive `ticker=...`
 - [x] `put_object` UTF-8 via StringIO + log bucket/key/linhas
 - [x] CLI `--bucket`
+- [x] **US-09** — `validate_data.py` schema + qualidade antes do Crawler
+- [x] Relatorio em `reports/validacao_{timestamp}.csv`
 
 ## Validacao
 
@@ -138,6 +142,7 @@ Indice completo: **[docs/README.md](docs/README.md)**
 | [US-06 — Validacao](docs/us-06-sprint1-validation.md) | Checklist completo Sprint 1 |
 | [US-07 — Download Ibovespa](docs/us-07-download-ibovespa.md) | yfinance → CSV local |
 | [US-08 — Upload S3](docs/us-08-upload-s3.md) | CSV particionado Hive → S3 raw |
+| [US-09 — Validacao dados](docs/us-09-validate-data.md) | Schema e qualidade no S3 |
 | [Convencao de Nomenclatura](docs/naming-convention.md) | Padrao de nomes |
 
 ## Destruir (dev)
@@ -149,6 +154,15 @@ terraform destroy -var-file="terraform.tfvars"
 ## Proximo passo — Sprint 2
 
 - **Glue Crawler** — catalogacao automatica → tabelas em `b3_raw`
+
+### Validar dados no S3 (US-09)
+
+```powershell
+$bucket = terraform output -raw s3_bucket_raw_name
+python scripts/validate_data.py --bucket $bucket
+```
+
+Guia: [US-09 — Validacao dados](docs/us-09-validate-data.md)
 
 ### Download e upload Ibovespa (US-07 + US-08)
 
