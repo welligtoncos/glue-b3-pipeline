@@ -24,6 +24,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "athena_analyst_users" {
+  description = "Usuarios IAM adicionados ao grupo de analysts Athena (least privilege)."
+  type        = list(string)
+  default     = []
+}
+
 variable "environment" {
   description = "Ambiente de deploy. Usado no prefixo de nomenclatura de todos os recursos."
   type        = string

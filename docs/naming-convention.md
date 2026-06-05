@@ -51,6 +51,8 @@ Recursos futuros devem **sempre** usar `local.name_prefix` — nunca montar stri
 | Glue Database | `{prefix}-glue-db-catalog` | `glue-b3-dev-glue-db-catalog` |
 | Glue Crawler | `{prefix}-glue-crawler-raw` | `glue-b3-dev-glue-crawler-raw` |
 | IAM Role (Crawler) | `{prefix}-iam-glue-crawler` | `glue-b3-dev-iam-glue-crawler` |
+| IAM Group (Analysts) | `{prefix}-iam-grp-athena-analysts` | `glue-b3-dev-iam-grp-athena-analysts` |
+| IAM Policy (Athena) | `{prefix}-iam-athena-query` | `glue-b3-dev-iam-athena-query` |
 
 ### US-03 — Athena (reservado)
 

@@ -22,8 +22,9 @@ locals {
   }
 
   # Reservado para US-02 e US-03
-  glue_database_name    = "${local.name_prefix}-glue-db-catalog"
-  glue_crawler_name     = "${local.name_prefix}-glue-crawler-raw"
-  athena_workgroup_name = "${local.name_prefix}-athena-wg-primary"
-  iam_role_glue_crawler = "${local.name_prefix}-iam-glue-crawler"
+  glue_database_name        = "${local.name_prefix}-glue-db-catalog"
+  glue_crawler_name         = "${local.name_prefix}-glue-crawler-raw"
+  athena_workgroup_name     = "${local.name_prefix}-athena-wg-primary"
+  iam_role_glue_crawler     = "${local.name_prefix}-iam-glue-crawler"
+  iam_group_athena_analysts = "${local.name_prefix}-iam-grp-athena-analysts"
 }

@@ -33,3 +33,38 @@ output "naming_convention" {
     iam_glue_crawler = local.iam_role_glue_crawler
   }
 }
+
+output "glue_crawler_role_arn" {
+  description = "ARN da IAM Role do Glue Crawler."
+  value       = aws_iam_role.glue_crawler.arn
+}
+
+output "glue_crawler_role_name" {
+  description = "Nome da IAM Role do Glue Crawler."
+  value       = aws_iam_role.glue_crawler.name
+}
+
+output "athena_query_policy_arn" {
+  description = "ARN da IAM Policy standalone para queries Athena."
+  value       = aws_iam_policy.athena_query.arn
+}
+
+output "athena_query_policy_name" {
+  description = "Nome da IAM Policy standalone para queries Athena."
+  value       = aws_iam_policy.athena_query.name
+}
+
+output "athena_analysts_group_name" {
+  description = "Nome do grupo IAM de analysts Athena."
+  value       = aws_iam_group.athena_analysts.name
+}
+
+output "athena_analysts_group_arn" {
+  description = "ARN do grupo IAM de analysts Athena."
+  value       = aws_iam_group.athena_analysts.arn
+}
+
+output "athena_analyst_users" {
+  description = "Usuarios membros do grupo de analysts Athena."
+  value       = var.athena_analyst_users
+}

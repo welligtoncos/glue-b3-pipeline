@@ -2,3 +2,5 @@ project_name   = "glue-b3"
 aws_account_id = "000000000000" # substitua: aws sts get-caller-identity --query Account --output text
 aws_region     = "us-east-1"
 environment    = "dev"
+
+athena_analyst_users = ["seu-usuario-iam"]
