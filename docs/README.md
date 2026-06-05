@@ -22,6 +22,7 @@ Indice da documentacao do projeto.
 | US-07 | [Download Ibovespa](us-07-download-ibovespa.md) | ✅ Concluida |
 | US-08 | [Upload S3 particionado](us-08-upload-s3.md) | ✅ Concluida |
 | US-09 | [Validacao dados S3](us-09-validate-data.md) | ✅ Concluida |
+| US-10 | [README principal](../README.md) | ✅ Guia de ingestao completo |
 
 ## Scripts
 

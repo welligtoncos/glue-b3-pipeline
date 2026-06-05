@@ -1,175 +1,417 @@
-# Pipeline B3 — Analise de Acoes (Ibovespa)
+# Pipeline B3 — Análise de Ações (Ibovespa)
 
-Infraestrutura como codigo (Terraform) para um pipeline de dados na AWS, focado em ingestao, catalogacao e consulta de dados de acoes da B3.
+Pipeline de dados na AWS para ingestão, catalogação e consulta SQL de cotações da B3: dados no **S3**, metadados no **Glue Data Catalog** e análises no **Athena**. Infraestrutura 100% **Terraform**; ingestão via **Python** (yfinance + boto3).
 
-## Stack
+---
+
+## Visão geral
+
+1. **Terraform** provisiona buckets S3, Glue Database, IAM, Athena Workgroup e logs.
+2. **Scripts Python** baixam OHLCV (yfinance), validam qualidade e enviam CSVs particionados ao S3.
+3. **Glue Crawler** infere schema e partições Hive; **Athena** consulta a tabela em `b3_raw`.
+
+Ambiente de referência: `dev` · região `us-east-1` · projeto `glue-b3`.
+
+---
+
+## Arquitetura
 
 ```
-S3 (raw) → Glue Crawler → Glue Catalog (b3_raw) → Athena
-                ↓                                      ↓
-         CloudWatch Logs                    S3 (athena-results)
+                    ┌─────────────────────────────────────────────────────────┐
+                    │                    INGESTÃO (local)                      │
+                    │  yfinance ──► download_ibovespa.py ──► validate_data.py │
+                    └────────────────────────────┬────────────────────────────┘
+                                                 │ put_object (Hive)
+                                                 ▼
+┌──────────────┐    ┌──────────────────────────────────────┐    ┌─────────────────┐
+│  Fonte B3    │    │  S3 Raw                               │    │  Glue Crawler   │
+│  (yfinance   │───►│  raw/ibovespa/ticker=PETR4/PETR4.csv │───►│  (catalogação)  │
+│   ou Kaggle) │    │  reports/validacao_*.csv              │    └────────┬────────┘
+└──────────────┘    └──────────────────────────────────────┘             │
+                                                 │                         ▼
+                                                 │              ┌─────────────────┐
+                                                 │              │ Glue Catalog    │
+                                                 │              │ database: b3_raw│
+                                                 │              └────────┬────────┘
+                                                 │                       │
+                                                 ▼                       ▼
+                                    ┌────────────────────────────────────────┐
+                                    │  Amazon Athena (glue-b3-workgroup)      │
+                                    │  Engine v3 · resultados → S3 athena-*   │
+                                    └────────────────────────────────────────┘
+                                                 │
+                                                 ▼
+                                    ┌────────────────────────────────────────┐
+                                    │  CloudWatch Logs                        │
+                                    │  /aws-glue/crawlers/glue-b3-crawler     │
+                                    └────────────────────────────────────────┘
 ```
 
-| Camada | Servico | Status |
-|--------|---------|--------|
-| Armazenamento raw | Amazon S3 | ✅ US-01 |
-| Armazenamento de queries | Amazon S3 | ✅ US-01 |
-| Seguranca (IAM) | Roles, Policies, Groups | ✅ US-02 |
-| Glue Database | Glue Data Catalog (`b3_raw`) | ✅ US-03 |
-| Consulta SQL | Amazon Athena Workgroup | ✅ US-04 |
-| Observabilidade | CloudWatch Log Group | ✅ US-05 |
-| Validacao Sprint 1 | Terraform plan/apply/verify | ✅ US-06 |
-| Ingestao local | Download Ibovespa (yfinance) | ✅ US-07 |
-| Ingestao S3 | Upload CSV particionado (Hive) | ✅ US-08 |
-| Qualidade de dados | Validacao schema CSVs no S3 | ✅ US-09 |
-| Glue Crawler | Catalogacao automatica S3 | 🔜 Sprint 2 |
+| Etapa | Serviço | Status |
+|-------|---------|--------|
+| Infra base | S3, IAM, Glue DB, Athena, Logs | ✅ Terraform |
+| Download + upload + validação | Python | ✅ US-07 a US-09 |
+| Glue Crawler | Glue | ⚙️ Configuração manual (passo 8) |
 
-## Ambiente
+Documentação detalhada por US: **[docs/README.md](docs/README.md)**
 
-| Item | Valor |
-|------|-------|
-| Regiao | `us-east-1` |
-| Ambiente | `dev` |
-| IaC | Terraform >= 1.5 |
-| Provider | AWS ~> 5.0 |
-| Conta AWS | `303238378103` |
-| Projeto | `glue-b3` |
+---
 
-## Inicio rapido
+## Pré-requisitos
+
+| Ferramenta | Versão | Verificação |
+|------------|--------|-------------|
+| [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html) | v2, perfil configurado | `aws sts get-caller-identity` |
+| [Terraform](https://developer.hashicorp.com/terraform/install) | >= 1.5 | `terraform version` |
+| Python | 3.9+ | `python --version` |
+| Git | qualquer recente | `git --version` |
+
+**Permissões AWS:** o usuário precisa criar/gerenciar S3, IAM, Glue, Athena e CloudWatch Logs (deploy Terraform) e `s3:PutObject`/`s3:GetObject` no bucket raw (scripts Python).
+
+**Fonte de dados:**
+
+| Fonte | Uso no projeto |
+|-------|----------------|
+| **yfinance** (padrão) | `scripts/download_ibovespa.py` — sem conta externa |
+| **Kaggle** (opcional) | Alternativa manual: baixe CSVs e adapte o upload para o mesmo layout Hive em `raw/ibovespa/` |
+
+---
+
+## Passo a passo — do zero ao Athena
+
+### 1. Clonar o repositório
 
 ```powershell
-cd c:\welligton-aws\project-glue-2
+git clone <url-do-repositorio> project-glue-2
+cd project-glue-2
+```
 
-# 1. Configurar
+```bash
+# Linux / macOS
+git clone <url-do-repositorio> project-glue-2 && cd project-glue-2
+```
+
+### 2. Configurar credenciais AWS
+
+```powershell
+aws configure
+aws sts get-caller-identity
+```
+
+Anote o `Account` (12 dígitos) e o nome do usuário IAM.
+
+### 3. Criar `terraform.tfvars`
+
+```powershell
 Copy-Item terraform.tfvars.example terraform.tfvars
+```
 
-# 2. Deploy
+Edite `terraform.tfvars` ou gere automaticamente:
+
+```powershell
+$ACCOUNT_ID = aws sts get-caller-identity --query Account --output text
+$USER_NAME  = (aws sts get-caller-identity --query Arn --output text).Split("/")[-1]
+
+@"
+project_name   = "glue-b3"
+aws_account_id = "$ACCOUNT_ID"
+aws_region     = "us-east-1"
+environment    = "dev"
+
+glue_db_name   = "b3_raw"
+
+athena_analyst_users = ["$USER_NAME"]
+"@ | Set-Content terraform.tfvars
+```
+
+> `athena_analyst_users` adiciona seu usuário ao grupo IAM com permissão de query no Athena.
+
+### 4. Provisionar infraestrutura (`terraform apply`)
+
+```powershell
 terraform init
 terraform plan  -var-file="terraform.tfvars" -out=tfplan
 terraform apply tfplan
+```
 
-# 3. Validar Sprint 1
+Validação opcional da infra (Sprint 1):
+
+```powershell
 .\scripts\validate-sprint1.ps1 -VerifyOnly
 ```
 
-## Estrutura do repositorio
-
-```
-.
-├── main.tf                  # US-01: S3
-├── iam.tf                   # US-02: IAM
-├── glue.tf                  # US-03 + US-05: Glue DB + CloudWatch
-├── athena.tf                # US-04: Athena Workgroup
-├── locals.tf                # Nomenclatura centralizada
-├── variables.tf             # Variaveis
-├── outputs.tf               # Outputs
-├── scripts/
-│   ├── validate-sprint1.ps1 # Validacao Windows
-│   ├── validate-sprint1.sh  # Validacao Bash/CI
-│   ├── download_ibovespa.py # US-07/08: download + upload S3
-│   └── validate_data.py     # US-09: validacao CSVs no S3
-├── requirements.txt         # Dependencias Python
-```
-
-## Recursos provisionados
-
-| US | Recurso Terraform | Nome |
-|----|-------------------|------|
-| US-01 | `aws_s3_bucket.this["raw"]` | `glue-b3-dev-s3-raw-303238378103` |
-| US-01 | `aws_s3_bucket.this["athena_results"]` | `glue-b3-dev-s3-athena-results-303238378103` |
-| US-02 | `aws_iam_role.glue_crawler` | `glue-b3-dev-iam-glue-crawler` |
-| US-02 | `aws_iam_group.athena_analysts` | `glue-b3-dev-iam-grp-athena-analysts` |
-| US-03 | `aws_glue_catalog_database.this` | `b3_raw` |
-| US-04 | `aws_athena_workgroup.this` | `glue-b3-workgroup` |
-| US-05 | `aws_cloudwatch_log_group.glue_crawler` | `/aws-glue/crawlers/glue-b3-crawler` |
-
-## Variaveis
-
-| Variavel | Default | Descricao |
-|----------|---------|-----------|
-| `project_name` | — | Nome do projeto |
-| `aws_account_id` | — | ID da conta AWS |
-| `aws_region` | `us-east-1` | Regiao |
-| `environment` | `dev` | Ambiente |
-| `glue_db_name` | `b3_raw` | Glue Database |
-| `athena_analyst_users` | `[]` | Usuarios no grupo Athena |
-
-## Outputs principais
+Outputs úteis:
 
 ```powershell
 terraform output s3_bucket_raw_name
 terraform output glue_database_name
 terraform output athena_workgroup_name
-terraform output glue_crawler_log_group_name
 terraform output glue_crawler_role_arn
 ```
 
-## Criterios de aceite — Sprint 1
-
-- [x] **US-01** — Buckets S3 + versionamento + tags
-- [x] **US-02** — IAM Role + Policy + Group (least privilege)
-- [x] **US-03** — Glue Database `b3_raw`
-- [x] **US-04** — Athena Workgroup engine v3 + SSE_S3
-- [x] **US-05** — CloudWatch Log Group (14 dias)
-- [x] **US-06** — Validacao plan/apply/verify OK
-
-## Criterios de aceite — Sprint 2
-
-- [x] **US-07** — Script `download_ibovespa.py` funcional
-- [x] Tickers: PETR4, VALE3, ITUB4, BBDC4
-- [x] Colunas: ticker, date, open, high, low, close, volume
-- [x] Periodo >= 2018
-- [x] **US-08** — Upload S3 com particao Hive `ticker=...`
-- [x] `put_object` UTF-8 via StringIO + log bucket/key/linhas
-- [x] CLI `--bucket`
-- [x] **US-09** — `validate_data.py` schema + qualidade antes do Crawler
-- [x] Relatorio em `reports/validacao_{timestamp}.csv`
-
-## Validacao
+### 5. Instalar dependências Python
 
 ```powershell
-.\scripts\validate-sprint1.ps1 -VerifyOnly
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 ```
 
-## Documentacao
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-Indice completo: **[docs/README.md](docs/README.md)**
+### 6. Download dos dados (yfinance)
 
-| Documento | Descricao |
-|-----------|-----------|
-| [Arquitetura](docs/architecture.md) | Componentes e fluxo de dados |
-| [Getting Started](docs/getting-started.md) | Deploy e troubleshooting |
-| [US-06 — Validacao](docs/us-06-sprint1-validation.md) | Checklist completo Sprint 1 |
-| [US-07 — Download Ibovespa](docs/us-07-download-ibovespa.md) | yfinance → CSV local |
-| [US-08 — Upload S3](docs/us-08-upload-s3.md) | CSV particionado Hive → S3 raw |
-| [US-09 — Validacao dados](docs/us-09-validate-data.md) | Schema e qualidade no S3 |
-| [Convencao de Nomenclatura](docs/naming-convention.md) | Padrao de nomes |
-
-## Destruir (dev)
+Baixa PETR4, VALE3, ITUB4 e BBDC4 desde 2018; remove linhas com `volume <= 0`; salva `data/local/ibovespa_stocks.csv`.
 
 ```powershell
-terraform destroy -var-file="terraform.tfvars"
+python scripts/download_ibovespa.py
 ```
 
-## Proximo passo — Sprint 2
+**Kaggle (opcional):** se usar datasets externos, normalize para as colunas `ticker,date,open,high,low,close,volume` e faça upload manual com a mesma estrutura Hive do passo 7.
 
-- **Glue Crawler** — catalogacao automatica → tabelas em `b3_raw`
-
-### Validar dados no S3 (US-09)
+### 7. Upload ao S3 (partição Hive)
 
 ```powershell
 $bucket = terraform output -raw s3_bucket_raw_name
+python scripts/download_ibovespa.py --bucket $bucket
+```
+
+Estrutura gerada:
+
+```
+s3://{bucket}/raw/ibovespa/
+├── ticker=BBDC4/BBDC4.csv
+├── ticker=ITUB4/ITUB4.csv
+├── ticker=PETR4/PETR4.csv
+└── ticker=VALE3/VALE3.csv
+```
+
+Conferir no S3:
+
+```powershell
+aws s3 ls "s3://$bucket/raw/ibovespa/" --recursive
+```
+
+### 8. Validar qualidade (antes do Crawler)
+
+```powershell
 python scripts/validate_data.py --bucket $bucket
 ```
 
-Guia: [US-09 — Validacao dados](docs/us-09-validate-data.md)
+Saída esperada: `geral=OK` e relatório em `s3://{bucket}/reports/validacao_{timestamp}.csv`.
 
-### Download e upload Ibovespa (US-07 + US-08)
+Critérios: colunas corretas, `date` YYYY-MM-DD, `close > 0`, `volume > 0`, sem duplicatas `(ticker, date)`.
+
+### 9. Executar o Glue Crawler
+
+O Crawler **ainda não está no Terraform**; crie uma vez no console ou via CLI (role e database já existem).
+
+**Console AWS:** Glue → Crawlers → Create crawler
+
+| Campo | Valor |
+|-------|-------|
+| Name | `glue-b3-dev-glue-crawler-raw` |
+| IAM Role | `glue-b3-dev-iam-glue-crawler` (output `glue_crawler_role_arn`) |
+| Database | `b3_raw` |
+| S3 path | `s3://<bucket-raw>/raw/ibovespa/` |
+| Log group | `/aws-glue/crawlers/glue-b3-crawler` |
+
+Execute o crawler e aguarde status **Succeeded**. A tabela costuma ser nomeada **`ibovespa`** (confira em Glue → Tables).
+
+**CLI (alternativa):**
+
+```powershell
+$bucket = terraform output -raw s3_bucket_raw_name
+$role   = terraform output -raw glue_crawler_role_arn
+
+aws glue create-crawler `
+  --name glue-b3-dev-glue-crawler-raw `
+  --role $role `
+  --database-name b3_raw `
+  --targets "S3Targets=[{Path=s3://$bucket/raw/ibovespa/}]" `
+  --schema-change-policy "UpdateBehavior=UPDATE_IN_DATABASE,DeleteBehavior=LOG"
+
+aws glue start-crawler --name glue-b3-dev-glue-crawler-raw
+aws glue get-crawler --name glue-b3-dev-glue-crawler-raw --query Crawler.LastCrawl.Status
+```
+
+Logs de erro:
+
+```powershell
+aws logs filter-log-events `
+  --log-group-name "/aws-glue/crawlers/glue-b3-crawler" `
+  --filter-pattern "ERROR"
+```
+
+### 10. Queries no Athena
+
+1. Console **Athena** → Workgroup **`glue-b3-workgroup`**
+2. Data source: **AwsDataCatalog** · Database **`b3_raw`**
+3. Exemplos (ajuste o nome da tabela se o Crawler gerou outro):
+
+```sql
+-- Amostra por ticker (usa partição)
+SELECT ticker, date, close, volume
+FROM b3_raw.ibovespa
+WHERE ticker = 'PETR4'
+ORDER BY date DESC
+LIMIT 10;
+
+-- Contagem por ticker
+SELECT ticker, COUNT(*) AS registros
+FROM b3_raw.ibovespa
+GROUP BY ticker
+ORDER BY ticker;
+
+-- Média móvel 7 dias (Engine v3)
+SELECT
+  ticker,
+  date,
+  close,
+  AVG(close) OVER (
+    PARTITION BY ticker
+    ORDER BY date
+    ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+  ) AS mm7
+FROM b3_raw.ibovespa
+WHERE ticker = 'PETR4'
+ORDER BY date;
+```
+
+**CLI:**
+
+```powershell
+aws athena start-query-execution `
+  --query-string "SELECT ticker, COUNT(*) FROM b3_raw.ibovespa GROUP BY ticker" `
+  --work-group glue-b3-workgroup `
+  --query-execution-context Database=b3_raw
+```
+
+Resultados em: `s3://<bucket-athena-results>/query-results/` (output `terraform output athena_output_location`).
+
+---
+
+## Estrutura de pastas
+
+```
+project-glue-2/
+├── main.tf                      # S3 buckets (raw + athena-results)
+├── iam.tf                       # Role Crawler, policies, grupo Athena
+├── glue.tf                      # Glue Database b3_raw + CloudWatch Logs
+├── athena.tf                    # Workgroup glue-b3-workgroup
+├── locals.tf                    # Nomenclatura centralizada
+├── variables.tf
+├── outputs.tf
+├── terraform.tfvars.example     # Modelo (copiar → terraform.tfvars)
+├── requirements.txt             # yfinance, pandas, boto3
+├── scripts/
+│   ├── download_ibovespa.py     # Download yfinance + upload S3 (US-07/08)
+│   ├── validate_data.py         # Validação CSVs no S3 (US-09)
+│   ├── validate-sprint1.ps1       # Validação infra Windows
+│   └── validate-sprint1.sh        # Validação infra Bash/CI
+├── docs/                        # Guias por US e arquitetura
+│   ├── README.md                # Índice da documentação
+│   ├── architecture.md
+│   ├── getting-started.md
+│   └── us-*.md
+└── data/local/                  # CSV local (gitignored)
+```
+
+---
+
+## Troubleshooting
+
+### 1. `AccessDenied` no Terraform ou no upload S3
+
+**Sintoma:** `terraform apply` ou `download_ibovespa.py --bucket` falha com `AccessDenied`.
+
+**Causas:** usuário sem permissão na conta; bucket em outra conta; política SCP restritiva.
+
+**Solução:**
+
+```powershell
+aws sts get-caller-identity
+# Confirme Account = aws_account_id em terraform.tfvars
+
+aws s3 ls s3://$(terraform output -raw s3_bucket_raw_name)/
+```
+
+Garanta policies para S3, IAM, Glue, Athena e Logs. Para `logs:CreateLogGroup`, veja [US-05 — Glue Logs](docs/us-05-glue-logs.md).
+
+---
+
+### 2. Validação US-09 com `geral=FAIL`
+
+**Sintoma:** `erros_close`, `erros_data` ou `erros_schema` > 0.
+
+**Causas:** CSV desatualizado no S3; colunas erradas; `volume = 0` (yfinance); datas inválidas.
+
+**Solução:**
 
 ```powershell
 pip install -r requirements.txt
 $bucket = terraform output -raw s3_bucket_raw_name
 python scripts/download_ibovespa.py --bucket $bucket
+python scripts/validate_data.py --bucket $bucket
 ```
 
-Guias: [US-07](docs/us-07-download-ibovespa.md) · [US-08](docs/us-08-upload-s3.md)
+O download remove automaticamente linhas com `volume <= 0`.
+
+---
+
+### 3. Glue Crawler `FAILED` ou tabela vazia no Athena
+
+**Sintoma:** Crawler falha; `TABLE_NOT_FOUND`; query retorna 0 linhas.
+
+**Causas:** path S3 errado; bucket sem dados; role IAM incorreta; validação pulada.
+
+**Solução:**
+
+```powershell
+$bucket = terraform output -raw s3_bucket_raw_name
+
+aws s3 ls "s3://$bucket/raw/ibovespa/" --recursive
+aws glue get-database --name b3_raw
+aws iam get-role --role-name glue-b3-dev-iam-glue-crawler
+
+python scripts/validate_data.py --bucket $bucket
+
+aws glue start-crawler --name glue-b3-dev-glue-crawler-raw
+```
+
+Consulte logs em `/aws-glue/crawlers/glue-b3-crawler`. Detalhes: [US-05 — Glue Logs](docs/us-05-glue-logs.md).
+
+---
+
+## Referência rápida
+
+| Variável / output | Exemplo |
+|-------------------|---------|
+| Bucket raw | `glue-b3-dev-s3-raw-{account_id}` |
+| Glue Database | `b3_raw` |
+| Athena Workgroup | `glue-b3-workgroup` |
+| Crawler (nome reservado) | `glue-b3-dev-glue-crawler-raw` |
+
+## Destruir ambiente (dev)
+
+```powershell
+terraform destroy -var-file="terraform.tfvars"
+```
+
+> Buckets com `force_destroy = true` em dev são esvaziados na destruição.
+
+---
+
+## Documentação complementar
+
+| Documento | Conteúdo |
+|-----------|----------|
+| [docs/README.md](docs/README.md) | Índice de todas as US |
+| [Arquitetura](docs/architecture.md) | Componentes e fluxo |
+| [US-07 Download](docs/us-07-download-ibovespa.md) | yfinance |
+| [US-08 Upload S3](docs/us-08-upload-s3.md) | Partição Hive |
+| [US-09 Validação](docs/us-09-validate-data.md) | Qualidade de dados |
+| [Nomenclatura](docs/naming-convention.md) | Padrão de nomes AWS |
